@@ -20,7 +20,7 @@ Le site doit être pensé **d'abord pour le téléphone** (la plupart des client
 - **Téléphone** : 04 26 47 34 32
 - **Horaires** : tous les jours, 11:00 – 23:00 (fuseau Europe/Paris)
 - En dehors des horaires, le site affiche « Fermé » et **bloque les commandes**.
-- Logo : `logo.png`
+- Logo : `public/logo.png`
 
 ## Stack technique conseillée
 
@@ -154,8 +154,8 @@ Pas de desserts.
 ## Fichiers fournis
 
 - `prototype.html` : maquette validée (design et parcours)
-- `logo.png` : logo Chicken King
-- `tacos.png` : photo du tacos sur fond blanc (les autres photos produits viendront plus tard ; en attendant, utiliser des vignettes texte comme dans le prototype)
+- `public/logo.png` : logo Chicken King
+- `public/tacos.png` : photo du tacos sur fond blanc (les autres photos produits viendront plus tard ; en attendant, utiliser des vignettes texte comme dans le prototype)
 
 ## Points encore à confirmer avec le propriétaire
 

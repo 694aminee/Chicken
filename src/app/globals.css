@@ -1,0 +1,116 @@
+@import "tailwindcss";
+
+/* Couleurs et polices de la marque (reprises de prototype.html) */
+@theme {
+  --color-ink: #0d0c0c; /* fond noir de la marque */
+  --color-panel: #1a1716; /* surfaces surélevées */
+  --color-line: #2e2927; /* filets */
+  --color-paper: #f6f1ec; /* texte blanc cassé */
+  --color-muted: #a89d97; /* texte secondaire */
+  --color-red: #e3262f; /* rouge marque, actions */
+  --color-red-deep: #b5161f;
+  --color-gold: #f5c518; /* étiquettes de prix, comme le menu du snack */
+  --color-ok: #3ecf72;
+  --color-err: #ff6b72;
+
+  --font-display: var(--font-anton), "Impact", "Arial Narrow Bold", sans-serif;
+  --font-body: var(--font-barlow), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-label: var(--font-barlow-condensed), "Arial Narrow", system-ui, sans-serif;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background: var(--color-ink);
+  color: var(--color-paper);
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Bande noire sous l'encoche des iPhone */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto;
+  height: env(safe-area-inset-top, 0px);
+  z-index: 30;
+  background: var(--color-ink);
+}
+
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+
+:where(button, input, a):focus-visible {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 2px;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Marges latérales qui respectent les bords arrondis des téléphones */
+.px-safe {
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Panneau qui monte du bas de l'écran */
+@keyframes sheet-up {
+  from {
+    transform: translateY(30px);
+    opacity: 0.6;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.sheet-anim {
+  animation: sheet-up 0.22s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet-anim {
+    animation: none;
+  }
+}
+
+/* Gros ticket du numéro de commande, avec ses encoches */
+.ticket {
+  position: relative;
+}
+.ticket::before,
+.ticket::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-ink);
+  transform: translateY(-50%);
+}
+.ticket::before {
+  left: -9px;
+}
+.ticket::after {
+  right: -9px;
+}
