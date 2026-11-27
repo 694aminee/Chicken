@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lugdunum — Lyon en monde ouvert</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Oswald:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/hud.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <canvas id="game-canvas"></canvas>
+
+  <!-- ─────────── HUD ─────────── -->
+  <div id="hud">
+    <div id="hud-top-right">
+      <div class="hud-row">
+        <div id="hud-weapon">
+          <span id="hud-weapon-icon">✊</span>
+          <span id="hud-weapon-ammo"></span>
+        </div>
+        <div class="hud-col">
+          <div id="hud-clock">10:00</div>
+          <div class="bar" id="bar-health-wrap"><div class="fill" id="bar-health"></div></div>
+          <div class="bar hidden" id="bar-armor-wrap"><div class="fill" id="bar-armor"></div></div>
+          <div class="bar thin" id="bar-stamina-wrap"><div class="fill" id="bar-stamina"></div></div>
+        </div>
+      </div>
+      <div id="hud-money">$00000500</div>
+      <div id="hud-stars">
+        <span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span>
+      </div>
+    </div>
+
+    <div id="radar-wrap"><canvas id="radar"></canvas></div>
+    <div id="zone-name"></div>
+    <div id="prompt"></div>
+    <div id="toast"></div>
+    <div id="fps"></div>
+    <div id="help-hint"><kbd>H</kbd> commandes · <kbd>M</kbd> carte</div>
+  </div>
+
+  <!-- ─────────── Aide ─────────── -->
+  <div id="help-panel" class="hidden">
+    <h3>Commandes</h3>
+    <ul>
+      <li><kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd> / <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / flèches — se déplacer</li>
+      <li><kbd>Souris</kbd> — tourner la caméra · <kbd>Molette</kbd> / <kbd>V</kbd> — distance caméra</li>
+      <li><kbd>Maj</kbd> — sprinter (consomme l'endurance)</li>
+      <li><kbd>Espace</kbd> — sauter</li>
+      <li><kbd>E</kbd> / <kbd>F</kbd> — entrer dans un bâtiment (cercles lumineux)</li>
+      <li><kbd>M</kbd> — grande carte (clic = téléportation)</li>
+      <li><kbd>T</kbd> (maintenir) — accélérer le temps</li>
+      <li><kbd>H</kbd> — afficher / masquer cette aide · <kbd>Échap</kbd> — pause</li>
+    </ul>
+  </div>
+
+  <!-- ─────────── Grande carte ─────────── -->
+  <div id="map-screen">
+    <canvas id="map-canvas"></canvas>
+    <div id="map-legend">
+      <h3>Lyon</h3>
+      <p><span class="dot" style="background:#4cd964"></span>Planque</p>
+      <p><span class="dot" style="background:#4fc3f7"></span>Garage</p>
+      <p><span class="dot" style="background:#ffd23f"></span>Centre commercial</p>
+      <p><span class="dot" style="background:#ff9f43"></span>Armurerie</p>
+      <p><span class="dot" style="background:#ff3b30"></span>Hôpital</p>
+      <p><span class="dot" style="background:#ffffff"></span>Gares</p>
+      <p><span class="dot" style="background:#2d7bff"></span>Police</p>
+      <p class="small">Cliquez sur la carte pour vous y téléporter (mode exploration).</p>
+      <button id="map-close">Fermer (M)</button>
+    </div>
+  </div>
+
+  <!-- ─────────── Écrans ─────────── -->
+  <div id="loading-screen">
+    <div class="title-block">
+      <h1>LUGDUNUM</h1>
+      <h2>Lyon · monde ouvert</h2>
+    </div>
+    <div class="loading-bar-wrap"><div id="loading-bar"></div></div>
+    <p id="loading-text">Chargement…</p>
+    <p class="tip">Astuce : la Croix-Rousse est parfaite pour les sauts depuis le haut de la Grande-Côte.</p>
+  </div>
+
+  <div id="menu-screen" class="hidden">
+    <div class="title-block">
+      <h1>LUGDUNUM</h1>
+      <h2>Lyon · monde ouvert</h2>
+    </div>
+    <button id="play-button">JOUER</button>
+    <div class="controls-grid">
+      <div><kbd>ZQSD</kbd> déplacer</div>
+      <div><kbd>Souris</kbd> caméra</div>
+      <div><kbd>Maj</kbd> sprint</div>
+      <div><kbd>Espace</kbd> saut</div>
+      <div><kbd>E</kbd> entrer</div>
+      <div><kbd>M</kbd> carte</div>
+    </div>
+    <p class="small">Étape 1 : la ville et le personnage. Véhicules, armes et police arrivent dans les prochaines étapes.</p>
+  </div>
+
+  <div id="pause-screen" class="hidden">
+    <h1>PAUSE</h1>
+    <p>Cliquez pour reprendre</p>
+  </div>
+
+  <div id="death-screen"><span>HOSPITALISÉ</span></div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
