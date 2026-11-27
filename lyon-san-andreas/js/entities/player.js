@@ -237,6 +237,8 @@ export class Player {
       if (input.isDown('KeyS', 'ArrowDown')) f -= 1;
       if (input.isDown('KeyD', 'ArrowRight')) r += 1;
       if (input.isDown('KeyA', 'ArrowLeft')) r -= 1;
+      // joystick tactile
+      if (input.axisX || input.axisY) { r += input.axisX; f -= input.axisY; }
     }
     const fwd = this.getCameraForward(this._tmp);
     const right = this._tmp2.set(Math.cos(this.camYaw), 0, -Math.sin(this.camYaw));
@@ -246,7 +248,7 @@ export class Player {
 
     // ─── Endurance & sprint ───
     const s = this.stats;
-    const wantSprint = this.controlsEnabled && moving && input.isDown('ShiftLeft', 'ShiftRight');
+    const wantSprint = this.controlsEnabled && moving && (input.isDown('ShiftLeft', 'ShiftRight') || input.virtualSprint);
     if (s.stamina <= 0) this.exhausted = true;
     if (this.exhausted && s.stamina > 25) this.exhausted = false;
     this.sprinting = wantSprint && !this.exhausted;

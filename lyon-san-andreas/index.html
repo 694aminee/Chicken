@@ -2,7 +2,9 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="claude:viewport-fit-sides" content="cover" />
   <title>Lugdunum — Lyon en monde ouvert</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -47,12 +49,32 @@
     <div id="toast"></div>
     <div id="fps"></div>
     <div id="help-hint"><kbd>H</kbd> commandes · <kbd>M</kbd> carte</div>
+    <div id="rotate-hint">Tournez le téléphone à l'horizontale pour mieux jouer</div>
+  </div>
+
+  <!-- ─────────── Commandes tactiles (téléphone / tablette) ─────────── -->
+  <div id="touch-ui">
+    <div id="joy-zone"></div>
+    <div id="look-zone"></div>
+    <div id="joy-base"><div id="joy-knob"></div></div>
+    <button class="tbtn" id="btn-jump" data-key="Space">SAUT</button>
+    <button class="tbtn" id="btn-enter" data-key="KeyE">E</button>
+    <button class="tbtn small" id="btn-cam" data-key="KeyV">CAM</button>
+    <button class="tbtn small" id="btn-map" data-key="KeyM">CARTE</button>
+    <button class="tbtn small" id="btn-help" data-key="KeyH">?</button>
   </div>
 
   <!-- ─────────── Aide ─────────── -->
   <div id="help-panel" class="hidden">
     <h3>Commandes</h3>
-    <ul>
+    <ul class="touch-only">
+      <li><b>Pouce gauche</b> — joystick pour se déplacer (poussé à fond = sprint)</li>
+      <li><b>Glisser à droite</b> — tourner la caméra</li>
+      <li><b>SAUT</b> — sauter · <b>E</b> — entrer (cercles lumineux)</li>
+      <li><b>CAM</b> — distance caméra · <b>CARTE</b> — carte (toucher = téléportation)</li>
+      <li><b>?</b> — afficher / masquer cette aide</li>
+    </ul>
+    <ul class="desktop-only">
       <li><kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd> / <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / flèches — se déplacer</li>
       <li><kbd>Souris</kbd> — tourner la caméra · <kbd>Molette</kbd> / <kbd>V</kbd> — distance caméra</li>
       <li><kbd>Maj</kbd> — sprinter (consomme l'endurance)</li>
@@ -76,7 +98,7 @@
       <p><span class="dot" style="background:#ff3b30"></span>Hôpital</p>
       <p><span class="dot" style="background:#ffffff"></span>Gares</p>
       <p><span class="dot" style="background:#2d7bff"></span>Police</p>
-      <p class="small">Cliquez sur la carte pour vous y téléporter (mode exploration).</p>
+      <p class="small">Touchez ou cliquez sur la carte pour vous y téléporter (mode exploration).</p>
       <button id="map-close">Fermer (M)</button>
     </div>
   </div>
@@ -98,7 +120,12 @@
       <h2>Lyon · monde ouvert</h2>
     </div>
     <button id="play-button">JOUER</button>
-    <div class="controls-grid">
+    <div class="controls-grid touch-only">
+      <div><b>Pouce gauche</b> déplacer</div>
+      <div><b>Glisser à droite</b> caméra</div>
+      <div><b>SAUT</b> · <b>E</b> entrer</div>
+    </div>
+    <div class="controls-grid desktop-only">
       <div><kbd>ZQSD</kbd> déplacer</div>
       <div><kbd>Souris</kbd> caméra</div>
       <div><kbd>Maj</kbd> sprint</div>

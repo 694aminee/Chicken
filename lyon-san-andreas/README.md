@@ -17,7 +17,17 @@ marche pas, car les navigateurs bloquent les modules JavaScript en `file://`.
 
 Une connexion Internet est nécessaire : Three.js et les polices sont téléchargés depuis un CDN.
 
-## Commandes
+## Jouer sur iPhone / iPad / Android
+
+Le jeu reconnaît automatiquement les écrans tactiles. Tenez le téléphone **à l'horizontale** :
+
+- **pouce gauche** : joystick (poussé à fond = sprint)
+- **glisser à droite** : tourner la caméra
+- boutons **SAUT**, **E** (entrer), **CAM**, **CARTE** et **?** (aide)
+
+Il faut un iPhone à jour (iOS 16.4 ou plus récent).
+
+## Commandes (ordinateur)
 
 | Touche | Action |
 |---|---|
@@ -45,6 +55,7 @@ js/entities/weapons.js  armes et combat (étape 4)
 js/entities/trafficNpc.js piétons et circulation (étape 2)
 js/systems/police.js    indice de recherche (étape 4)
 js/ui/hud.js            HUD + radar + grande carte
+js/ui/touch.js          joystick et boutons tactiles (téléphone, tablette)
 ```
 
 ## Avancement

@@ -1156,7 +1156,6 @@ export class LyonMap {
     this.ramps.push({ x, z, y, c: Math.cos(a), s: Math.sin(a), hw, hl, h });
     // face arrière verticale : solide (on ne traverse pas le tremplin par derrière)
     this.addSolid(x + Math.sin(a) * (hl - 0.3), z + Math.cos(a) * (hl - 0.3), hw, 0.3, y - 0.5, y + h, a, 'ramp');
-    this.labels.push({ text: 'Tremplin', x, z: z + 12, size: 6 });
   }
 
   _buildStatue(cx, cz) {
@@ -1514,6 +1513,8 @@ export class LyonMap {
     const tex = canvasTexture(cv, { anisotropy: this.anisotropy });
     tex.generateMipmaps = true;
     tex.minFilter = THREE.LinearMipmapLinearFilter;
+    // libère la mémoire du grand canvas une fois envoyé à la carte graphique (important sur iPhone)
+    tex.onUpdate = () => { cv.width = 1; cv.height = 1; tex.onUpdate = null; };
 
     // Maillage du relief, découpé en morceaux (normales calculées sur la grille complète → pas de couture)
     const nx = this.nx, nz = this.nz, H = this.H;
@@ -1549,7 +1550,6 @@ export class LyonMap {
       ground.name = 'sol';
       this.group.add(ground);
     }
-    this.groundCanvas = cv;
 
     // Bordure hors carte
     const frameMat = new THREE.MeshLambertMaterial({ color: '#7d7a72' });

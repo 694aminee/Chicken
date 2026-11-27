@@ -16,6 +16,7 @@ import { WeaponSystem } from './entities/weapons.js';
 import { TrafficManager } from './entities/trafficNpc.js';
 import { PoliceSystem } from './systems/police.js';
 import { HUD } from './ui/hud.js';
+import { TouchControls, isTouchDevice } from './ui/touch.js';
 
 const START_TIME = 10 * 60;  // 10:00
 const TIME_SPEED = 1;        // 1 seconde réelle = 1 minute de jeu (journée de 24 min)
@@ -32,6 +33,8 @@ class Input {
     this._dx = 0; this._dy = 0; this._wheel = 0;
     this.locked = false;
     this.dragging = false;
+    // commandes tactiles (joystick analogique)
+    this.axisX = 0; this.axisY = 0; this.virtualSprint = false;
   }
   attach(canvas) {
     const block = new Set(['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab']);
@@ -215,7 +218,9 @@ class Game {
     };
   }
 
-  async init() {
+  async init(saved = {}) {
+    this.isTouch = isTouchDevice();
+    document.body.classList.toggle('touch', this.isTouch);
     let renderer;
     try {
       renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, powerPreference: 'high-performance' });
@@ -240,16 +245,24 @@ class Game {
     this.input.attach(this.canvas);
     this.dayNight = new DayNight(this.scene);
 
-    this.map = new LyonMap(this.scene, { anisotropy: renderer.capabilities.getMaxAnisotropy() });
+    this.map = new LyonMap(this.scene, { anisotropy: Math.min(8, renderer.capabilities.getMaxAnisotropy()) });
     await this.map.build((text, frac) => {
       this.ui.loadingText.textContent = text + '…';
       this.ui.loadingBar.style.width = `${Math.round(frac * 100)}%`;
     });
 
     this.player = new Player({ scene: this.scene, camera: this.camera, map: this.map, input: this.input });
-    const sp = this.map.spawn;
+    const sp = saved.player || this.map.spawn;
     this.player.teleport(sp.x, sp.z, sp.yaw);
+    if (typeof saved.money === 'number') this.player.stats.money = saved.money;
+    if (typeof saved.minutes === 'number') this.dayNight.minutes = saved.minutes;
     this.player.onDeath = () => this._onPlayerDeath();
+    // garde la partie en cours quand la page en ligne est mise à jour
+    window.claude?.hot?.snapshot?.(() => ({
+      player: { x: this.player.position.x, z: this.player.position.z, yaw: this.player.yaw },
+      money: this.player.stats.money, minutes: this.dayNight.minutes,
+    }));
+    if (this.isTouch) this.touch = new TouchControls(this.input);
 
     this.hud = new HUD(this.map);
     this.hud.onMapClick = (x, z) => {
@@ -301,6 +314,7 @@ class Game {
 
   _setState(s) {
     this.state = s;
+    this.touch?.releaseAll();
     this.ui.menu.classList.toggle('hidden', s !== 'menu');
     this.ui.pause.classList.toggle('hidden', s !== 'paused');
     document.body.classList.toggle('in-game', s === 'playing' || s === 'map' || s === 'dead');
@@ -380,8 +394,11 @@ class Game {
 
 // ───────────────────────────── Lancement ─────────────────────────────
 const game = new Game();
-game.init().catch((err) => {
+const start = (saved) => game.init(saved || {}).catch((err) => {
   console.error(err);
   const t = document.getElementById('loading-text');
-  t.innerHTML = `<span class="error">Erreur : ${err.message}</span>`;
+  t.textContent = `Erreur : ${err.message}`;
+  t.classList.add('error');
 });
+if (window.claude?.hot?.ready) window.claude.hot.ready(start);
+else start(window.claude?.hot?.data ?? {});
