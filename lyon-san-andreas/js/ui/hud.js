@@ -20,7 +20,13 @@ const ICONS = {
   police: { color: '#2d7bff', glyph: 'P' },
 };
 
-const WEAPON_GLYPHS = { fist: '✊', bat: '🏏', pistol: '🔫', rifle: '🎯' };
+const svg = (inner) => `<svg viewBox="0 0 64 64" width="46" height="46" aria-hidden="true">${inner}</svg>`;
+const WEAPON_ICONS = {
+  fist: '<span class="glyph">✊</span>',
+  bat: svg('<path d="M8 56 L14 50 L48 12 Q54 6 58 10 Q62 14 56 20 L18 54 L12 60 Z" fill="#c98a4b" stroke="#000" stroke-width="3"/>'),
+  pistol: svg('<path d="M6 18 H52 V28 H30 L26 50 H14 L18 28 H6 Z" fill="#cfd8dc" stroke="#000" stroke-width="3"/><rect x="52" y="20" width="6" height="5" fill="#cfd8dc" stroke="#000" stroke-width="2"/>'),
+  rifle: svg('<path d="M2 24 H44 V20 H60 V28 H44 V32 H36 L34 46 H26 L28 32 H16 L10 40 H2 Z" fill="#b0bec5" stroke="#000" stroke-width="3"/>'),
+};
 
 const $ = (id) => document.getElementById(id);
 
@@ -45,7 +51,14 @@ export class HUD {
       mapScreen: $('map-screen'),
       mapCanvas: $('map-canvas'),
       fps: $('fps'),
+      starsWrap: $('hud-stars'),
+      crosshair: $('crosshair'),
+      lock: $('lock'),
+      vehicleName: $('vehicle-name'),
+      dmg: $('dmg-flash'),
     };
+    this.vehicleTimer = 0;
+    this.blips = [];
     this.last = {};
     this.zoneTimer = 0;
     this.currentZone = '';
@@ -120,7 +133,7 @@ export class HUD {
     this._set('arw', this.el.armorWrap, s.armor > 0 ? 'bar' : 'bar hidden', 'className');
     this._set('st', this.el.stamina, `${(s.stamina / s.maxStamina) * 100}%`, 'width');
     this._set('money', this.el.money, '$' + String(Math.floor(s.money)).padStart(8, '0'));
-    this._set('wIcon', this.el.weaponIcon, WEAPON_GLYPHS[player.weapon.id] || '✊');
+    this._set('wIcon', this.el.weaponIcon, WEAPON_ICONS[player.weapon.id] || WEAPON_ICONS.fist, 'innerHTML');
     const ammo = player.weapon.ammo === Infinity ? '' : `${player.weapon.clip}-${player.weapon.ammo}`;
     this._set('wAmmo', this.el.weaponAmmo, ammo);
     const wanted = Math.round(s.wanted);
@@ -133,6 +146,10 @@ export class HUD {
     if (this.zoneTimer > 0) {
       this.zoneTimer -= dt;
       if (this.zoneTimer <= 0) this.el.zone.classList.remove('show');
+    }
+    if (this.vehicleTimer > 0) {
+      this.vehicleTimer -= dt;
+      if (this.vehicleTimer <= 0) this.el.vehicleName.classList.remove('show');
     }
     if (this.toastTimer > 0) {
       this.toastTimer -= dt;
@@ -169,6 +186,15 @@ export class HUD {
     const scale = R / this.radarRange; // px par mètre
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, S, S);
+    if (map.interior) {
+      g.fillStyle = '#1c2026'; g.beginPath(); g.arc(R, R, R - 1, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#cfd8dc'; g.font = 'bold 13px Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText('INTÉRIEUR', R, R - 8);
+      g.font = '11px Arial, sans-serif'; g.fillStyle = '#90a4ae';
+      const name = map.interior.name.length > 22 ? map.interior.name.slice(0, 21) + '…' : map.interior.name;
+      g.fillText(name, R, R + 10);
+      return;
+    }
     g.save();
     g.beginPath(); g.arc(R, R, R - 1, 0, Math.PI * 2); g.clip();
     g.fillStyle = '#26301f'; g.fillRect(0, 0, S, S);
@@ -188,6 +214,17 @@ export class HUD {
       const d = Math.hypot(rx, ry);
       if (d > R - 10) { rx *= (R - 10) / d; ry *= (R - 10) / d; }
       this._drawIcon(g, R + rx, R + ry, loc.icon, 6.5);
+    }
+    // policiers et voitures de police (quand on est recherché)
+    const blink = Math.floor(performance.now() / 250) % 2 === 0;
+    for (const b of this.blips) {
+      const dx = (b.x - player.position.x) * scale, dz = (b.z - player.position.z) * scale;
+      let rx = dx * c - dz * s, ry = dx * s + dz * c;
+      const d = Math.hypot(rx, ry);
+      if (d > R - 6) { rx *= (R - 6) / d; ry *= (R - 6) / d; }
+      g.fillStyle = b.color === 'police' ? (blink ? '#ff2a2a' : '#2a6bff') : b.color;
+      g.strokeStyle = '#000'; g.lineWidth = 1.5;
+      g.beginPath(); g.arc(R + rx, R + ry, b.size, 0, Math.PI * 2); g.fill(); g.stroke();
     }
     // nord
     const nx = R + Math.sin(camYaw) * (R - 11), ny = R - Math.cos(camYaw) * (R - 11);
@@ -248,6 +285,28 @@ export class HUD {
     const a = Math.max(9, 11 * k);
     g.beginPath(); g.moveTo(0, -a); g.lineTo(a * 0.7, a * 0.8); g.lineTo(0, a * 0.4); g.lineTo(-a * 0.7, a * 0.8); g.closePath();
     g.fill(); g.stroke(); g.restore();
+  }
+
+  showVehicleName(name) {
+    this.el.vehicleName.textContent = name;
+    this.el.vehicleName.classList.add('show');
+    this.vehicleTimer = 3;
+  }
+  showCrosshair(on) { if (this.last.cross !== on) { this.last.cross = on; this.el.crosshair.classList.toggle('show', on); } }
+  /** Petit triangle rouge au-dessus de la cible verrouillée. pos : Vector3 ou null. */
+  showLock(pos) {
+    const el = this.el.lock;
+    if (!pos || !this.camera) { if (this.last.lock) { el.classList.remove('show'); this.last.lock = false; } return; }
+    const v = this._proj || (this._proj = pos.clone());
+    v.set(pos.x, pos.y + 2.2, pos.z).project(this.camera);
+    if (v.z > 1) { el.classList.remove('show'); this.last.lock = false; return; }
+    el.style.transform = `translate(${(v.x * 0.5 + 0.5) * window.innerWidth}px, ${(-v.y * 0.5 + 0.5) * window.innerHeight}px)`;
+    if (!this.last.lock) { el.classList.add('show'); this.last.lock = true; }
+  }
+  setWantedSearching(on) { if (this.last.search !== on) { this.last.search = on; this.el.starsWrap.classList.toggle('searching', on); } }
+  flashDamage() {
+    const el = this.el.dmg;
+    el.classList.remove('hit'); void el.offsetWidth; el.classList.add('hit');
   }
 
   showFps(fps) { if (this.el.fps) this.el.fps.textContent = `${fps} i/s`; }

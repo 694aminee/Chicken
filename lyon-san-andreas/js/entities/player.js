@@ -1,11 +1,13 @@
 /**
  * player.js — Personnage jouable à la 3ème personne.
  *
- *  - Déplacements relatifs à la caméra (ZQSD / WASD / flèches), sprint (Maj), saut (Espace)
+ *  - Déplacements relatifs à la caméra (ZQSD / WASD / flèches / joystick), sprint, saut
  *  - Nage dans le Rhône et la Saône
- *  - Caméra TPS orbitale à la souris (verrouillage du pointeur), anti-collision avec les murs
+ *  - Caméra TPS orbitale (souris ou doigt), anti-collision, caméra de poursuite en véhicule,
+ *    caméra d'épaule quand on vise (clic droit)
  *  - Statistiques : vie, armure, endurance, argent, indice de recherche
- *  - Mort (« HOSPITALISÉ ») puis réapparition à l'Hôpital de la Croix-Rousse
+ *  - Arme tenue en main, animations de coup de poing / batte / visée
+ *  - Monter / descendre des véhicules (moto : le personnage est assis dessus)
  */
 import * as THREE from 'three';
 import { WATER_LEVEL } from '../world/mapLyon.js';
@@ -14,11 +16,12 @@ const GRAVITY = 22;
 const JUMP_SPEED = 7.0;
 const RUN_SPEED = 5.4;
 const SPRINT_SPEED = 8.8;
+const AIM_SPEED = 2.8;
 const SWIM_SPEED = 2.4;
 const SWIM_FAST = 3.8;
 const RADIUS = 0.35;
 const HEIGHT = 1.8;
-const SWIM_DEPTH = 1.05; // les pieds sont à cette profondeur sous la surface quand on nage
+const SWIM_DEPTH = 1.05;
 
 const CAM_DISTANCES = [3.2, 5, 8];
 
@@ -42,6 +45,8 @@ function buildCharacter(outfit) {
     cap: new THREE.MeshLambertMaterial({ color: outfit.cap }),
     dark: new THREE.MeshLambertMaterial({ color: '#1a1a1a' }),
   };
+  const gunMat = new THREE.MeshLambertMaterial({ color: '#2b2f33' });
+  const woodMat = new THREE.MeshLambertMaterial({ color: '#b07a45' });
   const box = (w, h, d, mat, x = 0, y = 0, z = 0) => {
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
     m.position.set(x, y, z);
@@ -49,7 +54,7 @@ function buildCharacter(outfit) {
     return m;
   };
   const root = new THREE.Group();
-  const body = new THREE.Group(); // pivot pour inclinaison (nage, chute)
+  const body = new THREE.Group();
   root.add(body);
   const hips = new THREE.Group();
   hips.position.y = 0.95;
@@ -95,9 +100,20 @@ function buildCharacter(outfit) {
     hips.add(leg);
     return { leg, shin };
   };
-  const armL = makeArm(-1), armR = makeArm(1);
-  const legL = makeLeg(-1), legR = makeLeg(1);
-  return { root, body, hips, torso, head, armL, armR, legL, legR, mats };
+  // le bras « droit » du personnage est à x négatif (il regarde vers +z)
+  const armL = makeArm(1), armR = makeArm(-1);
+  const legL = makeLeg(1), legR = makeLeg(-1);
+  // armes tenues dans la main droite
+  const weapons = {
+    pistol: box(0.06, 0.13, 0.24, gunMat, 0, -0.36, 0.08),
+    rifle: new THREE.Group(),
+    bat: new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.06, 0.9, 8), woodMat),
+  };
+  weapons.rifle.add(box(0.07, 0.1, 0.8, gunMat, 0, 0, 0.18), box(0.05, 0.18, 0.08, gunMat, 0, -0.12, 0.1), box(0.06, 0.12, 0.22, woodMat, 0, -0.02, -0.2));
+  weapons.rifle.position.set(0, -0.36, 0.06);
+  weapons.bat.position.set(0, -0.36, 0.38); weapons.bat.rotation.x = Math.PI / 2; weapons.bat.castShadow = true;
+  for (const w of Object.values(weapons)) { w.visible = false; armR.fore.add(w); }
+  return { root, body, hips, torso, head, armL, armR, legL, legR, mats, weapons };
 }
 
 export const DEFAULT_OUTFIT = {
@@ -117,19 +133,20 @@ export class Player {
       armor: 0, maxArmor: 100,
       stamina: 100, maxStamina: 100,
       money: 500,
-      wanted: 0, // 0 à 5 étoiles (géré par systems/police.js à l'étape 4)
+      wanted: 0,
     };
-    this.weapon = { id: 'fist', name: 'Poings', ammo: Infinity, clip: Infinity };
+    this.weapon = { id: 'fist', name: 'Poings', gun: false, ammo: Infinity, clip: Infinity };
 
     this.position = new THREE.Vector3();
     this.velocity = new THREE.Vector3();
-    this.yaw = 0;              // orientation du personnage (direction (sin yaw, cos yaw))
+    this.yaw = 0;
     this.camYaw = 0;
     this.camPitch = 0.22;
     this.camDistIndex = 1;
     this.camDist = CAM_DISTANCES[1];
     this.camDistTarget = this.camDist;
     this.mouseSensitivity = 0.0024;
+    this.lastLook = 0;
 
     this.onGround = true;
     this.swimming = false;
@@ -137,12 +154,17 @@ export class Player {
     this.exhausted = false;
     this.state = 'alive';
     this.deathTimer = 0;
-    this.onDeath = null;       // callback appelé quand l'écran « HOSPITALISÉ » doit s'afficher
+    this.onDeath = null;
     this.controlsEnabled = true;
-    this.visible = true;       // à false quand le joueur est dans un véhicule (étape 2)
+    this.vehicle = null;
     this.walkPhase = 0;
     this.airTime = 0;
     this.speed = 0;
+    this.aimMode = false;   // visée au clic droit (réticule)
+    this.aimHold = 0;       // garde la direction de tir quelques instants
+    this.aimYaw = 0;
+    this.attackTimer = 0;   // animation de coup
+    this.hurtTimer = 0;
 
     this.outfit = { ...DEFAULT_OUTFIT };
     this.model = buildCharacter(this.outfit);
@@ -155,32 +177,38 @@ export class Player {
     this._tmp2 = new THREE.Vector3();
   }
 
-  /** Place le joueur (et la caméra derrière lui). */
+  /** Place le joueur (et la caméra derrière lui). y : hauteur imposée (intérieurs). */
   teleport(x, z, yaw = this.yaw, y = null) {
-    const ground = y ?? this.map.getSurfaceHeight(x, z);
-    this.position.set(x, Math.max(ground, this.map.isWater(x, z) ? WATER_LEVEL - SWIM_DEPTH : ground), z);
+    const ground = y ?? this.map.getSurfaceHeight(x, z, Math.max(0, this.map.getGroundHeight(x, z)) + 1);
+    const water = this.map.isWater(x, z) && ground < WATER_LEVEL - 1.3;
+    this.position.set(x, water ? WATER_LEVEL - SWIM_DEPTH : ground, z);
     this.velocity.set(0, 0, 0);
     this.yaw = yaw;
     this.camYaw = yaw + Math.PI;
     this._camTarget.set(x, this.position.y + 1.6, z);
     this.mesh.position.copy(this.position);
     this.mesh.rotation.y = yaw;
-    this.swimming = this.map.isWater(x, z) && ground < WATER_LEVEL - 1.3;
+    this.swimming = water;
+    this.onGround = !water;
     this._updateCamera(1);
   }
 
-  /** Change la tenue (utilisé par la garde-robe de la planque à l'étape 3). */
+  /** Change la tenue (garde-robe). */
   setOutfit(outfit) {
     Object.assign(this.outfit, outfit);
     for (const [k, mat] of Object.entries(this.model.mats)) if (this.outfit[k]) mat.color.set(this.outfit[k]);
   }
+  setWeaponVisual(id) {
+    for (const [k, m] of Object.entries(this.model.weapons)) m.visible = k === id;
+  }
 
   damage(amount) {
-    if (this.state !== 'alive') return;
+    if (this.state !== 'alive' || amount <= 0) return;
     const s = this.stats;
     const absorbed = Math.min(s.armor, amount * 0.7);
     s.armor -= absorbed;
     s.health = Math.max(0, s.health - (amount - absorbed));
+    this.hurtTimer = 0.25;
     if (s.health <= 0) this._die();
   }
   heal(amount = Infinity) { this.stats.health = Math.min(this.stats.maxHealth, this.stats.health + amount); }
@@ -191,16 +219,45 @@ export class Player {
     this.deathTimer = 0;
     this._deathNotified = false;
     this.velocity.set(0, 0, 0);
-    this.stats.wanted = 0;
   }
 
-  respawn(spawn) {
+  respawn(spawn, y = null) {
     this.state = 'alive';
     this.stats.health = this.stats.maxHealth;
     this.stats.stamina = this.stats.maxStamina;
     this.model.body.rotation.set(0, 0, 0);
     this.model.body.position.set(0, 0, 0);
-    this.teleport(spawn.x, spawn.z, spawn.yaw ?? 0);
+    this.teleport(spawn.x, spawn.z, spawn.yaw ?? 0, y);
+  }
+
+  // ─── Véhicules ───
+  enterVehicle(v) {
+    this.vehicle = v;
+    this.swimming = false;
+    this.velocity.set(0, 0, 0);
+    this.aimMode = false;
+    if (v.isBike) {
+      v.seat.add(this.mesh);
+      this.mesh.position.set(0, -0.5, 0);
+      this.mesh.rotation.set(0, 0, 0);
+      this.mesh.visible = true;
+    } else {
+      this.mesh.visible = false;
+    }
+    this.camDistTarget = v.t.camDist;
+  }
+  exitVehicle(x = this.position.x, y = this.position.y, z = this.position.z) {
+    const v = this.vehicle;
+    this.vehicle = null;
+    this.scene.add(this.mesh);
+    this.mesh.visible = true;
+    this.mesh.rotation.set(0, 0, 0);
+    this.position.set(x, y, z);
+    this.velocity.set(0, 0, 0);
+    this.onGround = false;
+    if (v) this.yaw = v.yaw;
+    this.camDistTarget = CAM_DISTANCES[this.camDistIndex];
+    this.model.body.rotation.set(0, 0, 0);
   }
 
   /** Direction horizontale vers laquelle regarde la caméra. */
@@ -208,27 +265,35 @@ export class Player {
     return out.set(-Math.sin(this.camYaw), 0, -Math.cos(this.camYaw));
   }
 
+  _look(dt) {
+    const input = this.input;
+    if (!this.controlsEnabled) return;
+    if (input.mouseDX || input.mouseDY) this.lastLook = performance.now();
+    const sens = this.aimMode ? this.mouseSensitivity * 0.6 : this.mouseSensitivity;
+    this.camYaw -= input.mouseDX * sens;
+    this.camPitch = THREE.MathUtils.clamp(this.camPitch + input.mouseDY * sens, -0.45, 1.25);
+    if (input.wasPressed('KeyV')) {
+      this.camDistIndex = (this.camDistIndex + 1) % CAM_DISTANCES.length;
+      this.camDistTarget = this.vehicle ? this.vehicle.t.camDist * (0.8 + this.camDistIndex * 0.3) : CAM_DISTANCES[this.camDistIndex];
+    }
+  }
+
   update(dt) {
     const input = this.input;
-    // ─── Caméra à la souris ───
-    if (this.controlsEnabled) {
-      this.camYaw -= input.mouseDX * this.mouseSensitivity;
-      this.camPitch = THREE.MathUtils.clamp(this.camPitch + input.mouseDY * this.mouseSensitivity, -0.45, 1.25);
-      if (input.wheel) {
-        this.camDistTarget = THREE.MathUtils.clamp(this.camDistTarget + Math.sign(input.wheel) * 0.8, 2.4, 10);
-      }
-      if (input.wasPressed('KeyV')) {
-        this.camDistIndex = (this.camDistIndex + 1) % CAM_DISTANCES.length;
-        this.camDistTarget = CAM_DISTANCES[this.camDistIndex];
-      }
-    }
+    this._look(dt);
     this.camDist = damp(this.camDist, this.camDistTarget, 8, dt);
+    this.hurtTimer = Math.max(0, this.hurtTimer - dt);
+    this.attackTimer = Math.max(0, this.attackTimer - dt);
+    this.aimHold = Math.max(0, this.aimHold - dt);
 
     if (this.state === 'dead') {
       this._updateDeath(dt);
       this._updateCamera(dt);
       return;
     }
+    if (this.vehicle) { this._updateInVehicle(dt); return; }
+
+    this.aimMode = this.controlsEnabled && this.weapon.gun && input.isMouseDown(2);
 
     // ─── Entrées de déplacement ───
     let f = 0, r = 0;
@@ -237,7 +302,6 @@ export class Player {
       if (input.isDown('KeyS', 'ArrowDown')) f -= 1;
       if (input.isDown('KeyD', 'ArrowRight')) r += 1;
       if (input.isDown('KeyA', 'ArrowLeft')) r -= 1;
-      // joystick tactile
       if (input.axisX || input.axisY) { r += input.axisX; f -= input.axisY; }
     }
     const fwd = this.getCameraForward(this._tmp);
@@ -248,7 +312,8 @@ export class Player {
 
     // ─── Endurance & sprint ───
     const s = this.stats;
-    const wantSprint = this.controlsEnabled && moving && (input.isDown('ShiftLeft', 'ShiftRight') || input.virtualSprint);
+    const aiming = this.aimMode || this.aimHold > 0;
+    const wantSprint = this.controlsEnabled && moving && !aiming && (input.isDown('ShiftLeft', 'ShiftRight') || input.virtualSprint);
     if (s.stamina <= 0) this.exhausted = true;
     if (this.exhausted && s.stamina > 25) this.exhausted = false;
     this.sprinting = wantSprint && !this.exhausted;
@@ -257,15 +322,17 @@ export class Player {
 
     let speed;
     if (this.swimming) speed = this.sprinting ? SWIM_FAST : SWIM_SPEED;
+    else if (aiming) speed = AIM_SPEED;
     else speed = this.sprinting ? SPRINT_SPEED : RUN_SPEED;
     if (!moving) speed = 0;
 
-    // ─── Vitesse horizontale (accélération douce) ───
     const accel = this.onGround || this.swimming ? 14 : 2.5;
     this.velocity.x = damp(this.velocity.x, dir.x * speed, accel, dt);
     this.velocity.z = damp(this.velocity.z, dir.z * speed, accel, dt);
     this.speed = Math.hypot(this.velocity.x, this.velocity.z);
-    if (moving) this.yaw = angleDamp(this.yaw, Math.atan2(dir.x, dir.z), 12, dt);
+    if (this.aimMode) this.yaw = angleDamp(this.yaw, this.camYaw + Math.PI, 20, dt);
+    else if (this.aimHold > 0) this.yaw = angleDamp(this.yaw, this.aimYaw, 18, dt);
+    else if (moving) this.yaw = angleDamp(this.yaw, Math.atan2(dir.x, dir.z), 12, dt);
 
     // ─── Déplacement horizontal + collisions ───
     const p = this.position;
@@ -275,7 +342,7 @@ export class Player {
 
     // ─── Vertical : sol, saut, nage ───
     const ground = this.map.getSurfaceHeight(p.x, p.z, p.y + 0.1);
-    const deepWater = ground < WATER_LEVEL - 1.3;
+    const deepWater = this.map.isWater(p.x, p.z) && ground < WATER_LEVEL - 1.3;
     const swimY = WATER_LEVEL - SWIM_DEPTH;
     if (this.swimming) {
       if (!deepWater) {
@@ -295,7 +362,7 @@ export class Player {
       }
       this.velocity.y -= GRAVITY * dt;
       p.y += this.velocity.y * dt;
-      if (deepWater && p.y <= swimY) { // plongeon dans le fleuve
+      if (deepWater && p.y <= swimY) {
         p.y = swimY;
         this.velocity.y = 0;
         this.swimming = true;
@@ -306,7 +373,7 @@ export class Player {
         this.velocity.y = 0;
         this.onGround = true;
       } else if (this.onGround && this.velocity.y <= 0 && p.y - ground < 0.65) {
-        p.y = ground; // colle au sol en descendant les pentes et marches
+        p.y = ground;
         this.velocity.y = 0;
       } else {
         this.onGround = false;
@@ -316,8 +383,33 @@ export class Player {
 
     this.mesh.position.copy(p);
     this.mesh.rotation.y = this.yaw;
-    this.mesh.visible = this.visible;
     this._animate(dt);
+    this._updateCamera(dt);
+  }
+
+  _updateInVehicle(dt) {
+    const v = this.vehicle;
+    this.position.copy(v.pos);
+    this.speed = 0;
+    this.sprinting = false;
+    this.aimMode = false;
+    this.stats.stamina = Math.min(this.stats.maxStamina, this.stats.stamina + 14 * dt);
+    const m = this.model;
+    if (v.isBike) { // position assise sur la moto
+      m.body.rotation.set(0.25, 0, 0);
+      m.legL.leg.rotation.x = m.legR.leg.rotation.x = -1.2;
+      m.legL.shin.rotation.x = m.legR.shin.rotation.x = 1.5;
+      m.legL.leg.rotation.z = 0.15; m.legR.leg.rotation.z = -0.15;
+      m.armL.arm.rotation.x = m.armR.arm.rotation.x = -1.05;
+      m.armL.fore.rotation.x = m.armR.fore.rotation.x = -0.3;
+      m.hips.position.y = 0.95;
+    }
+    // la caméra revient derrière le véhicule si on ne la tourne pas
+    if (performance.now() - this.lastLook > 1100 && Math.abs(v.speed) > 1.5) {
+      const behind = v.speed >= 0 ? v.yaw + Math.PI : v.yaw;
+      this.camYaw = angleDamp(this.camYaw, behind, 2.5, dt);
+      this.camPitch = damp(this.camPitch, 0.2, 1.5, dt);
+    }
     this._updateCamera(dt);
   }
 
@@ -326,6 +418,7 @@ export class Player {
     const sp = this.speed;
     this.walkPhase += dt * (sp > 0.2 ? 3.2 + sp * 1.05 : 0);
     const ph = this.walkPhase;
+    m.legL.leg.rotation.z = m.legR.leg.rotation.z = 0;
     if (this.swimming) {
       m.body.rotation.x = damp(m.body.rotation.x, 1.25, 6, dt);
       m.body.position.y = damp(m.body.position.y, 0.55, 6, dt);
@@ -349,23 +442,35 @@ export class Player {
       m.legR.shin.rotation.x = damp(m.legR.shin.rotation.x, 0.4, 10, dt);
       m.armL.arm.rotation.x = damp(m.armL.arm.rotation.x, -2.2, 8, dt);
       m.armR.arm.rotation.x = damp(m.armR.arm.rotation.x, -2.2, 8, dt);
-      m.armL.arm.rotation.z = damp(m.armL.arm.rotation.z, -0.4, 8, dt);
-      m.armR.arm.rotation.z = damp(m.armR.arm.rotation.z, 0.4, 8, dt);
-      return;
+      m.armL.arm.rotation.z = damp(m.armL.arm.rotation.z, 0.4, 8, dt);
+      m.armR.arm.rotation.z = damp(m.armR.arm.rotation.z, -0.4, 8, dt);
+    } else {
+      const amp = Math.min(1, sp / SPRINT_SPEED);
+      m.legL.leg.rotation.x = Math.sin(ph) * amp;
+      m.legR.leg.rotation.x = Math.sin(ph + Math.PI) * amp;
+      m.legL.shin.rotation.x = Math.max(0, Math.sin(ph + Math.PI * 0.5)) * amp * 1.3;
+      m.legR.shin.rotation.x = Math.max(0, Math.sin(ph + Math.PI * 1.5)) * amp * 1.3;
+      m.armL.arm.rotation.x = Math.sin(ph + Math.PI) * amp * 0.9;
+      m.armR.arm.rotation.x = Math.sin(ph) * amp * 0.9;
+      m.armL.arm.rotation.z = damp(m.armL.arm.rotation.z, 0.06, 8, dt);
+      m.armR.arm.rotation.z = damp(m.armR.arm.rotation.z, -0.06, 8, dt);
+      m.armL.fore.rotation.x = m.armR.fore.rotation.x = -0.25 - amp * 0.6;
+      const breathe = sp < 0.2 ? Math.sin(this.map.time * 2) * 0.015 : Math.abs(Math.sin(ph)) * 0.04 * amp;
+      m.hips.position.y = 0.95 + breathe;
     }
-    const amp = Math.min(1, sp / SPRINT_SPEED) * 1.0;
-    m.legL.leg.rotation.x = Math.sin(ph) * amp;
-    m.legR.leg.rotation.x = Math.sin(ph + Math.PI) * amp;
-    m.legL.shin.rotation.x = Math.max(0, Math.sin(ph + Math.PI * 0.5)) * amp * 1.3;
-    m.legR.shin.rotation.x = Math.max(0, Math.sin(ph + Math.PI * 1.5)) * amp * 1.3;
-    m.armL.arm.rotation.x = Math.sin(ph + Math.PI) * amp * 0.9;
-    m.armR.arm.rotation.x = Math.sin(ph) * amp * 0.9;
-    m.armL.arm.rotation.z = damp(m.armL.arm.rotation.z, -0.06, 8, dt);
-    m.armR.arm.rotation.z = damp(m.armR.arm.rotation.z, 0.06, 8, dt);
-    m.armL.fore.rotation.x = m.armR.fore.rotation.x = -0.25 - amp * 0.6;
-    // respiration au repos
-    const breathe = sp < 0.2 ? Math.sin(this.map.time * 2) * 0.015 : Math.abs(Math.sin(ph)) * 0.04 * amp;
-    m.hips.position.y = 0.95 + breathe;
+    // bras : visée / coups
+    const w = this.weapon.id;
+    if ((this.aimMode || this.aimHold > 0) && this.weapon.gun) {
+      m.armR.arm.rotation.set(-Math.PI / 2, 0, 0);
+      m.armR.fore.rotation.x = 0;
+      if (w === 'rifle') { m.armL.arm.rotation.set(-Math.PI / 2 + 0.15, 0, -0.55); m.armL.fore.rotation.x = -0.3; }
+    } else if (this.attackTimer > 0) {
+      const t = 1 - this.attackTimer / 0.32;
+      if (w === 'bat') { m.armR.arm.rotation.set(-1.4, 0, -1.3 + t * 2.2); m.armR.fore.rotation.x = -0.2; }
+      else { m.armR.arm.rotation.set(-Math.PI / 2 * Math.sin(t * Math.PI), 0, 0); m.armR.fore.rotation.x = -0.2 * (1 - Math.sin(t * Math.PI)); }
+    } else if (w === 'rifle') {
+      m.armR.arm.rotation.x = -0.6; m.armR.fore.rotation.x = -0.9;
+    }
   }
 
   _updateDeath(dt) {
@@ -373,8 +478,8 @@ export class Player {
     const m = this.model;
     m.body.rotation.x = damp(m.body.rotation.x, -Math.PI / 2, 5, dt);
     m.body.position.y = damp(m.body.position.y, 0.15, 5, dt);
-    m.armL.arm.rotation.z = damp(m.armL.arm.rotation.z, -1.2, 5, dt);
-    m.armR.arm.rotation.z = damp(m.armR.arm.rotation.z, 1.2, 5, dt);
+    m.armL.arm.rotation.z = damp(m.armL.arm.rotation.z, 1.2, 5, dt);
+    m.armR.arm.rotation.z = damp(m.armR.arm.rotation.z, -1.2, 5, dt);
     if (this.deathTimer > 1.2 && !this._deathNotified) {
       this._deathNotified = true;
       this.onDeath?.();
@@ -383,20 +488,23 @@ export class Player {
 
   _updateCamera(dt) {
     const cam = this.camera;
-    const p = this.position;
-    const targetY = p.y + (this.swimming ? 1.2 : 1.6);
-    this._camTarget.x = damp(this._camTarget.x, p.x, 18, dt);
+    const v = this.vehicle;
+    const p = v ? v.pos : this.position;
+    const aim = this.aimMode;
+    const targetY = p.y + (v ? (v.isBike ? 1.5 : 1.7) : this.swimming ? 1.2 : aim ? 1.55 : 1.6);
+    const follow = v ? 30 : 18;
+    this._camTarget.x = damp(this._camTarget.x, p.x, follow, dt);
     this._camTarget.y = damp(this._camTarget.y, targetY, 10, dt);
-    this._camTarget.z = damp(this._camTarget.z, p.z, 18, dt);
+    this._camTarget.z = damp(this._camTarget.z, p.z, follow, dt);
     const t = this._camTarget;
+    const dist = aim ? 2.4 : this.camDist + (v ? Math.min(3, Math.abs(v.speed) * 0.05) : 0);
     const cp = Math.cos(this.camPitch), sp = Math.sin(this.camPitch);
     const desired = new THREE.Vector3(
-      t.x + Math.sin(this.camYaw) * cp * this.camDist,
-      t.y + sp * this.camDist,
-      t.z + Math.cos(this.camYaw) * cp * this.camDist,
+      t.x + Math.sin(this.camYaw) * cp * dist,
+      t.y + sp * dist,
+      t.z + Math.cos(this.camYaw) * cp * dist,
     );
-    // léger décalage d'épaule
-    const shoulder = 0.35;
+    const shoulder = aim ? 0.75 : v ? 0 : 0.35;
     desired.x += Math.cos(this.camYaw) * shoulder;
     desired.z -= Math.sin(this.camYaw) * shoulder;
     const frac = this.map.raycast(t, desired, 0.25);
@@ -405,6 +513,9 @@ export class Player {
     camPos.y = Math.max(camPos.y, g + 0.35);
     if (this.map.isWater(camPos.x, camPos.z)) camPos.y = Math.max(camPos.y, WATER_LEVEL + 0.35);
     cam.position.copy(camPos);
-    cam.lookAt(t.x, t.y, t.z);
+    const look = aim ? new THREE.Vector3(desired.x - Math.sin(this.camYaw) * 10, t.y - sp * 10 + 0.3, desired.z - Math.cos(this.camYaw) * 10) : t;
+    cam.lookAt(look.x, look.y, look.z);
+    const fov = aim ? 50 : 65;
+    if (Math.abs(cam.fov - fov) > 0.1) { cam.fov = damp(cam.fov, fov, 10, dt); cam.updateProjectionMatrix(); }
   }
 }

@@ -23,7 +23,10 @@ Le jeu reconnaît automatiquement les écrans tactiles. Tenez le téléphone **�
 
 - **pouce gauche** : joystick (poussé à fond = sprint)
 - **glisser à droite** : tourner la caméra
-- boutons **SAUT**, **E** (entrer), **CAM**, **CARTE** et **?** (aide)
+- **E** : entrer dans un bâtiment, monter / voler / descendre d'un véhicule
+- **TIRER** (vise tout seul la cible la plus proche), **ARME** (changer d'arme)
+- **SAUT** à pied, **FREIN** (frein à main) en véhicule, **CABRER** en moto
+- **CAM**, **CARTE** et **?** (aide)
 
 Il faut un iPhone à jour (iOS 16.4 ou plus récent).
 
@@ -36,7 +39,10 @@ Il faut un iPhone à jour (iOS 16.4 ou plus récent).
 | Molette / V | distance de la caméra |
 | Maj | sprinter (consomme l'endurance) |
 | Espace | sauter |
-| E / F | entrer (cercles lumineux) |
+| E / F | entrer (cercles lumineux), monter / voler / descendre d'un véhicule |
+| En véhicule | Z/S accélérer/freiner, Q/D tourner, Espace frein à main, Maj cabrer (moto) |
+| Clic gauche / clic droit | frapper ou tirer / viser |
+| 1-4 ou molette, R | choisir l'arme, recharger |
 | M | grande carte (clic = téléportation) |
 | T (maintenir) | accélérer le temps |
 | H | aide · Échap : pause |
@@ -48,19 +54,22 @@ index.html              page du jeu (HUD, menus, carte)
 css/hud.css             styles de l'interface
 js/main.js              boucle de jeu, ciel, cycle jour/nuit, états du jeu
 js/world/mapLyon.js     relief, fleuves, ponts, rues, immeubles, monuments, collisions, radar
-js/world/interiors.js   entrées des bâtiments (intérieurs : prochaine étape)
+js/world/interiors.js   planque, centre commercial, gares, hôpital, armurerie, boutiques
 js/entities/player.js   personnage, caméra TPS, vie/armure/endurance/argent
-js/entities/vehicles.js voitures, motos, police (étape 2)
-js/entities/weapons.js  armes et combat (étape 4)
-js/entities/trafficNpc.js piétons et circulation (étape 2)
-js/systems/police.js    indice de recherche (étape 4)
+js/entities/vehicles.js voitures, motos, scooters, police, dégâts, explosions, garage
+js/entities/weapons.js  armes, visée, tirs, objets à ramasser
+js/entities/trafficNpc.js réseau routier, circulation IA, piétons
+js/systems/police.js    étoiles de recherche, poursuites, barrages, arrestation
 js/ui/hud.js            HUD + radar + grande carte
 js/ui/touch.js          joystick et boutons tactiles (téléphone, tablette)
+js/systems/effects.js   fumée, feu, explosions, impacts, sons synthétisés
 ```
 
 ## Avancement
 
 - [x] **Étape 1** : ville de Lyon explorable, personnage, caméra, HUD, radar, jour/nuit
-- [ ] **Étape 2** : véhicules, motos, trafic et piétons
-- [ ] **Étape 3** : intérieurs (planque, centre commercial, gares, hôpital, armurerie)
-- [ ] **Étape 4** : armes, combat et police
+- [x] **Étape 2** : véhicules, motos, trafic et piétons
+- [x] **Étape 3** : intérieurs (planque, centre commercial, gares, hôpital, armurerie)
+- [x] **Étape 4** : armes, combat et police
+
+La partie se sauvegarde en dormant dans le lit de la planque (dans ce navigateur).

@@ -45,6 +45,10 @@
 
     <div id="radar-wrap"><canvas id="radar"></canvas></div>
     <div id="zone-name"></div>
+    <div id="vehicle-name"></div>
+    <div id="crosshair"></div>
+    <div id="lock"></div>
+    <div id="dmg-flash"></div>
     <div id="prompt"></div>
     <div id="toast"></div>
     <div id="fps"></div>
@@ -57,8 +61,11 @@
     <div id="joy-zone"></div>
     <div id="look-zone"></div>
     <div id="joy-base"><div id="joy-knob"></div></div>
-    <button class="tbtn" id="btn-jump" data-key="Space">SAUT</button>
+    <button class="tbtn" id="btn-jump" data-key="Space"><span class="lbl-foot">SAUT</span><span class="lbl-car">FREIN</span></button>
+    <button class="tbtn" id="btn-fire" data-key="Mouse0">TIRER</button>
     <button class="tbtn" id="btn-enter" data-key="KeyE">E</button>
+    <button class="tbtn small" id="btn-weapon" data-key="WeaponNext">ARME</button>
+    <button class="tbtn small" id="btn-wheelie" data-key="ShiftLeft">CABRER</button>
     <button class="tbtn small" id="btn-cam" data-key="KeyV">CAM</button>
     <button class="tbtn small" id="btn-map" data-key="KeyM">CARTE</button>
     <button class="tbtn small" id="btn-help" data-key="KeyH">?</button>
@@ -68,18 +75,22 @@
   <div id="help-panel" class="hidden">
     <h3>Commandes</h3>
     <ul class="touch-only">
-      <li><b>Pouce gauche</b> — joystick pour se déplacer (poussé à fond = sprint)</li>
+      <li><b>Pouce gauche</b> — joystick : marcher (à fond = sprint) ou conduire (haut = accélérer)</li>
       <li><b>Glisser à droite</b> — tourner la caméra</li>
-      <li><b>SAUT</b> — sauter · <b>E</b> — entrer (cercles lumineux)</li>
-      <li><b>CAM</b> — distance caméra · <b>CARTE</b> — carte (toucher = téléportation)</li>
-      <li><b>?</b> — afficher / masquer cette aide</li>
+      <li><b>E</b> — entrer dans un bâtiment, monter / voler / descendre d'un véhicule</li>
+      <li><b>TIRER</b> — frapper / tirer (vise tout seul la cible la plus proche) · <b>ARME</b> — changer d'arme</li>
+      <li><b>SAUT</b> — sauter (à pied) · <b>FREIN</b> — frein à main · <b>CABRER</b> — roue arrière en moto</li>
+      <li><b>CAM</b> — distance caméra · <b>CARTE</b> — carte · <b>?</b> — cette aide</li>
     </ul>
     <ul class="desktop-only">
       <li><kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd> / <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / flèches — se déplacer</li>
-      <li><kbd>Souris</kbd> — tourner la caméra · <kbd>Molette</kbd> / <kbd>V</kbd> — distance caméra</li>
+      <li><kbd>Souris</kbd> — tourner la caméra · <kbd>V</kbd> — distance caméra</li>
       <li><kbd>Maj</kbd> — sprinter (consomme l'endurance)</li>
       <li><kbd>Espace</kbd> — sauter</li>
-      <li><kbd>E</kbd> / <kbd>F</kbd> — entrer dans un bâtiment (cercles lumineux)</li>
+      <li><kbd>E</kbd> / <kbd>F</kbd> — entrer dans un bâtiment · monter / voler / descendre d'un véhicule</li>
+      <li>En véhicule : <kbd>Z</kbd><kbd>S</kbd> accélérer / freiner · <kbd>Q</kbd><kbd>D</kbd> tourner · <kbd>Espace</kbd> frein à main · <kbd>Maj</kbd> cabrer (moto)</li>
+      <li><kbd>Clic gauche</kbd> — frapper / tirer · <kbd>Clic droit</kbd> — viser · <kbd>R</kbd> — recharger</li>
+      <li><kbd>1</kbd>-<kbd>4</kbd> / <kbd>Molette</kbd> — poings, batte, pistolet, fusil d'assaut</li>
       <li><kbd>M</kbd> — grande carte (clic = téléportation)</li>
       <li><kbd>T</kbd> (maintenir) — accélérer le temps</li>
       <li><kbd>H</kbd> — afficher / masquer cette aide · <kbd>Échap</kbd> — pause</li>
@@ -121,19 +132,21 @@
     </div>
     <button id="play-button">JOUER</button>
     <div class="controls-grid touch-only">
-      <div><b>Pouce gauche</b> déplacer</div>
+      <div><b>Pouce gauche</b> marcher / conduire</div>
       <div><b>Glisser à droite</b> caméra</div>
-      <div><b>SAUT</b> · <b>E</b> entrer</div>
+      <div><b>E</b> entrer / voler une voiture</div>
+      <div><b>TIRER</b> · <b>ARME</b></div>
     </div>
     <div class="controls-grid desktop-only">
       <div><kbd>ZQSD</kbd> déplacer</div>
       <div><kbd>Souris</kbd> caméra</div>
       <div><kbd>Maj</kbd> sprint</div>
       <div><kbd>Espace</kbd> saut</div>
-      <div><kbd>E</kbd> entrer</div>
-      <div><kbd>M</kbd> carte</div>
+      <div><kbd>E</kbd> entrer / voler</div>
+      <div><kbd>Clic</kbd> tirer · <kbd>Clic droit</kbd> viser</div>
     </div>
-    <p class="small">Étape 1 : la ville et le personnage. Véhicules, armes et police arrivent dans les prochaines étapes.</p>
+    <button id="new-button" class="hidden">Nouvelle partie</button>
+    <p class="small">Volez une voiture, faites vos courses à la Part-Dieu, semez la police sur les ponts du Rhône… <kbd>H</kbd> : toutes les commandes.</p>
   </div>
 
   <div id="pause-screen" class="hidden">
@@ -141,7 +154,19 @@
     <p>Cliquez pour reprendre</p>
   </div>
 
-  <div id="death-screen"><span>HOSPITALISÉ</span></div>
+  <div id="death-screen"><span id="death-text">HOSPITALISÉ</span></div>
+
+  <div id="fade"><p id="fade-text"></p></div>
+
+  <!-- Boutiques, garde-robe -->
+  <div id="panel" class="hidden">
+    <div class="panel-box">
+      <h3 id="panel-title"></h3>
+      <p id="panel-sub"></p>
+      <div id="panel-items"></div>
+      <button id="panel-close">Fermer</button>
+    </div>
+  </div>
 
   <script type="module" src="js/main.js"></script>
 </body>

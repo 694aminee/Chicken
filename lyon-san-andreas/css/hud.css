@@ -40,7 +40,8 @@ body.in-game #hud { display: block; }
   border: 3px solid rgba(0,0,0,0.9); box-shadow: 0 0 0 2px rgba(255,255,255,0.15), 0 4px 10px rgba(0,0,0,0.5);
   display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative;
 }
-#hud-weapon-icon { font-size: 38px; line-height: 1; filter: drop-shadow(0 2px 2px #000); }
+#hud-weapon-icon { font-size: 38px; line-height: 1; filter: drop-shadow(0 2px 2px #000); display: flex; }
+#hud-weapon-icon .glyph { font-size: 38px; }
 #hud-weapon-ammo {
   position: absolute; bottom: -6px; font-family: var(--hud-font); font-size: 18px;
   color: #fff; text-shadow: var(--outline);
@@ -295,4 +296,99 @@ body.touch #help-panel li { font-size: 14px; margin: 6px 0; }
   #map-screen.open { flex-direction: column; }
   #map-legend { width: auto; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
   #map-legend h3, #map-legend .small { display: none; }
+}
+
+/* ───────────── Étapes 2-4 : véhicules, armes, police, intérieurs ───────────── */
+#vehicle-name {
+  position: absolute; right: 34px; bottom: 96px; font-family: var(--hud-font); font-size: 34px; letter-spacing: 2px;
+  color: #ffe08a; text-shadow: var(--outline); opacity: 0; transition: opacity 0.5s;
+}
+#vehicle-name.show { opacity: 1; }
+#crosshair {
+  position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px; opacity: 0;
+  border: 2px solid rgba(255,255,255,0.9); border-radius: 50%; box-shadow: 0 0 0 1px rgba(0,0,0,0.6);
+}
+#crosshair::after { content: ''; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; background: #ff3b30; border-radius: 50%; }
+#crosshair.show { opacity: 1; }
+#lock {
+  position: absolute; left: 0; top: 0; width: 0; height: 0; opacity: 0; transition: opacity 0.15s;
+  border-left: 9px solid transparent; border-right: 9px solid transparent; border-top: 14px solid #ff2a2a;
+  margin-left: -9px; margin-top: -14px; filter: drop-shadow(0 0 2px #000);
+}
+#lock.show { opacity: 1; }
+#dmg-flash { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, transparent 55%, rgba(200,0,0,0.55)); }
+#dmg-flash.hit { animation: hit 0.45s ease-out; }
+@keyframes hit { 0% { opacity: 1; } 100% { opacity: 0; } }
+#hud-stars.searching .star.on { animation: blink 0.5s steps(2) infinite; }
+
+#fade {
+  position: fixed; inset: 0; z-index: 45; background: #000; pointer-events: none; opacity: 0; transition: opacity 0.3s;
+  display: flex; align-items: center; justify-content: center;
+}
+#fade.on { opacity: 1; }
+#fade-text { font-family: var(--hud-font); font-size: 34px; letter-spacing: 2px; color: #fff; }
+
+#death-screen.busted { background: radial-gradient(ellipse at center, rgba(0,30,120,0.25), rgba(0,10,50,0.8)); }
+#death-screen.busted span { color: #4f8bff; }
+
+#new-button {
+  font-family: var(--text-font); font-size: 15px; color: #fff; background: rgba(0,0,0,0.5); cursor: pointer;
+  border: 1px solid rgba(255,255,255,0.4); border-radius: 6px; padding: 6px 16px;
+}
+
+/* Boutiques */
+#panel {
+  position: fixed; inset: 0; z-index: 42; display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.55); padding: 16px;
+}
+.panel-box {
+  width: min(560px, 100%); max-height: 92vh; overflow: auto; background: #12161c; border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 12px; padding: 18px 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+}
+.panel-box h3 { margin: 0; font-family: var(--hud-font); font-size: 40px; letter-spacing: 2px; color: var(--gold); }
+#panel-sub { margin: 2px 0 12px; color: #b8c2cf; font-size: 15px; }
+#panel-items { display: grid; gap: 8px; }
+#panel-items .item {
+  display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: 'sw name price' 'sw desc desc'; align-items: center;
+  gap: 2px 12px; text-align: left; padding: 10px 14px; min-height: 52px; border-radius: 8px; cursor: pointer;
+  background: #1d2530; color: #fff; border: 1px solid rgba(255,255,255,0.12); font-family: var(--text-font);
+}
+#panel-items .item:hover:not(:disabled) { background: #263244; border-color: var(--gold); }
+#panel-items .item:disabled { opacity: 0.45; cursor: default; }
+#panel-items .name { grid-area: name; font-size: 17px; font-weight: 600; }
+#panel-items .price { grid-area: price; font-family: var(--hud-font); font-size: 24px; color: var(--money); white-space: nowrap; }
+#panel-items .desc { grid-area: desc; font-size: 13px; color: #9aa7b8; }
+#panel-items .swatch { grid-area: sw; width: 30px; height: 30px; border-radius: 6px; border: 2px solid #000; }
+.panel-money { margin: 6px 0 0; color: var(--money); font-family: var(--hud-font); font-size: 22px; letter-spacing: 1px; }
+#panel-close { margin-top: 12px; width: 100%; padding: 12px; font-family: var(--hud-font); font-size: 24px; letter-spacing: 2px; color: #fff; background: linear-gradient(#e53935, #a3201b); border: 0; border-radius: 8px; cursor: pointer; }
+
+/* Tactile : boutons combat / véhicule */
+.lbl-car { display: none; }
+body.in-vehicle .lbl-foot { display: none; }
+body.in-vehicle .lbl-car { display: inline; }
+#btn-fire {
+  width: 80px; height: 80px; right: calc(26px + env(safe-area-inset-right, 0px)); bottom: calc(124px + env(safe-area-inset-bottom, 0px));
+  font-size: 19px; border-color: #ff5252; background: rgba(120,0,0,0.45);
+}
+#btn-weapon, #btn-wheelie {
+  width: 60px; height: 60px; right: calc(124px + env(safe-area-inset-right, 0px)); bottom: calc(100px + env(safe-area-inset-bottom, 0px)); font-size: 14px;
+}
+#btn-wheelie { display: none; border-color: var(--stamina); }
+body.in-vehicle #btn-fire, body.in-vehicle #btn-weapon { display: none; }
+body.on-bike #btn-wheelie { display: block; }
+#btn-cam { right: auto; left: auto; top: calc(122px + env(safe-area-inset-top, 0px)); bottom: auto; right: calc(150px + env(safe-area-inset-right, 0px)); width: 40px; height: 40px; border-radius: 20px; font-size: 13px; }
+body.touch #vehicle-name { right: auto; left: 50%; transform: translateX(-50%); bottom: calc(52px + env(safe-area-inset-bottom, 0px)); font-size: 24px; }
+
+/* Tactile : petits boutons alignés en haut (libère la colonne de droite pour TIRER / SAUT) */
+body.touch #btn-map, body.touch #btn-help, body.touch #btn-cam { top: calc(10px + env(safe-area-inset-top, 0px)); bottom: auto; height: 38px; }
+body.touch #btn-map { right: calc(222px + env(safe-area-inset-right, 0px)); }
+body.touch #btn-help { right: calc(312px + env(safe-area-inset-right, 0px)); width: 38px; }
+body.touch #btn-cam { right: calc(356px + env(safe-area-inset-right, 0px)); width: 46px; }
+body.touch #prompt { top: calc(56px + env(safe-area-inset-top, 0px)); }
+body.touch #toast { top: calc(100px + env(safe-area-inset-top, 0px)); }
+@media (orientation: portrait) {
+  body.touch #btn-map, body.touch #btn-help, body.touch #btn-cam { top: calc(150px + env(safe-area-inset-top, 0px)); }
+  body.touch #btn-map { right: calc(12px + env(safe-area-inset-right, 0px)); }
+  body.touch #btn-help { right: calc(102px + env(safe-area-inset-right, 0px)); }
+  body.touch #btn-cam { right: calc(146px + env(safe-area-inset-right, 0px)); }
 }

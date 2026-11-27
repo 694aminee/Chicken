@@ -27,8 +27,8 @@ const PERRE_W = 6;         // largeur du quai en pente (perré)
 const BERGE_H = -2.6;      // hauteur des berges basses
 const BED_H = -7.5;        // fond du fleuve
 const ROAD_W = 12;         // largeur d'une rue standard
-const QUAI_OFFSET = 11;    // distance entre le bord du fleuve et l'axe de la route de quai
-const STEP_UP = 0.5;       // hauteur de marche franchissable à pied
+export const QUAI_OFFSET = 11;    // distance entre le bord du fleuve et l'axe de la route de quai
+export const STEP_UP = 0.5; // hauteur de marche franchissable à pied
 const CONFLUENCE_Z = 1040; // au sud de ce Z, Saône et Rhône ne font plus qu'un
 const HASH_CELL = 24;      // taille des cellules de la table spatiale des collisions
 const CHUNK = 400;         // taille des morceaux de maillage (pour ne dessiner que ce qui est visible)
@@ -120,12 +120,12 @@ function mulberry32(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-function makeCanvas(w, h) {
+export function makeCanvas(w, h) {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
   return c;
 }
-function canvasTexture(canvas, { repeat = false, srgb = true, anisotropy = 4 } = {}) {
+export function canvasTexture(canvas, { repeat = false, srgb = true, anisotropy = 4 } = {}) {
   const t = new THREE.CanvasTexture(canvas);
   if (srgb) t.colorSpace = THREE.SRGBColorSpace;
   if (repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; }
@@ -138,6 +138,51 @@ function polyLength(pts) {
   let l = 0;
   for (let i = 1; i < pts.length; i++) l += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
   return l;
+}
+
+/**
+ * Repousse un cercle hors d'une liste de boîtes orientées (utilisé par la ville et les intérieurs).
+ * pos : Vector3 (pieds). Retourne true s'il y a eu contact.
+ */
+export function resolveSolids(near, pos, radius, height = 1.8) {
+  let hit = false;
+  for (let pass = 0; pass < 2; pass++) {
+    for (const s of near) {
+      if (pos.y >= s.maxY - STEP_UP || pos.y + height <= s.minY) continue;
+      const dx = pos.x - s.cx, dz = pos.z - s.cz;
+      let lx = s.c * dx - s.s * dz, lz = s.s * dx + s.c * dz;
+      const qx = clamp(lx, -s.hx, s.hx), qz = clamp(lz, -s.hz, s.hz);
+      const ddx = lx - qx, ddz = lz - qz;
+      const d2 = ddx * ddx + ddz * ddz;
+      if (d2 > radius * radius) continue;
+      hit = true;
+      if (d2 > 1e-8) {
+        const d = Math.sqrt(d2), push = (radius - d) / d;
+        lx += ddx * push; lz += ddz * push;
+      } else {
+        const px = s.hx - Math.abs(lx), pz = s.hz - Math.abs(lz);
+        if (px < pz) lx = (lx >= 0 ? 1 : -1) * (s.hx + radius);
+        else lz = (lz >= 0 ? 1 : -1) * (s.hz + radius);
+      }
+      pos.x = s.cx + s.c * lx + s.s * lz;
+      pos.z = s.cz - s.s * lx + s.c * lz;
+    }
+  }
+  return hit;
+}
+/** Point (x, y, z) à l'intérieur d'une des boîtes (avec marge pad) ? */
+export function pointInSolids(near, x, y, z, pad) {
+  for (const s of near) {
+    if (y < s.minY - pad || y > s.maxY + pad) continue;
+    const dx = x - s.cx, dz = z - s.cz;
+    const lx = s.c * dx - s.s * dz, lz = s.s * dx + s.c * dz;
+    if (Math.abs(lx) < s.hx + pad && Math.abs(lz) < s.hz + pad) return true;
+  }
+  return false;
+}
+/** Crée une boîte de collision orientée (même format que LyonMap.addSolid). */
+export function makeSolid(cx, cz, hx, hz, minY, maxY, a = 0, tag = 'static') {
+  return { cx, cz, hx, hz, minY, maxY, c: Math.cos(a), s: Math.sin(a), tag };
 }
 
 // ───────────────────────────── Fleuve ─────────────────────────────
@@ -207,7 +252,7 @@ class River {
 }
 
 // ───────────────────────────── Constructeur de géométrie fusionnée ─────────────────────────────
-class GeoBuilder {
+export class GeoBuilder {
   constructor() { this.p = []; this.n = []; this.uv = []; this.c = []; this.idx = []; this.v = 0; }
   /** Quadrilatère a,b,c,d dans le sens anti-horaire vu de face. */
   quad(a, b, c, d, uv, col) {
@@ -359,7 +404,7 @@ function makeDeckTexture(anisotropy) {
   return canvasTexture(cv, { repeat: true, anisotropy });
 }
 
-function makeRadialTexture(inner = 'rgba(255,220,150,0.9)', outer = 'rgba(255,200,120,0)') {
+export function makeRadialTexture(inner = 'rgba(255,220,150,0.9)', outer = 'rgba(255,200,120,0)') {
   const cv = makeCanvas(128, 128), g = cv.getContext('2d');
   const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
   gr.addColorStop(0, inner); gr.addColorStop(1, outer);
@@ -367,7 +412,7 @@ function makeRadialTexture(inner = 'rgba(255,220,150,0.9)', outer = 'rgba(255,20
   return canvasTexture(cv);
 }
 
-function makeSignTexture(text, { bg = '#1b1b1b', fg = '#ffffff', w = 1024, h = 256, font = 'bold 120px "Bebas Neue", Impact, sans-serif', border = null } = {}) {
+export function makeSignTexture(text, { bg = '#1b1b1b', fg = '#ffffff', w = 1024, h = 256, font = 'bold 120px "Bebas Neue", Impact, sans-serif', border = null } = {}) {
   const cv = makeCanvas(w, h), g = cv.getContext('2d');
   g.fillStyle = bg; g.fillRect(0, 0, w, h);
   if (border) { g.strokeStyle = border; g.lineWidth = 12; g.strokeRect(6, 6, w - 12, h - 12); }
@@ -523,7 +568,7 @@ export class LyonMap {
     return h11 + (h01 - h11) * (1 - tx) + (h10 - h11) * (1 - tz);
   }
   /** Hauteur du relief seul (sans ponts ni objets). */
-  getGroundHeight(x, z) { return this._gridSample(this.H, x, z); }
+  getGroundHeight(x, z) { return this.interior ? this.interior.getSurfaceHeight(x, z, 1e9) : this._gridSample(this.H, x, z); }
   /** Distance signée au bord de l'eau (négative = dans le fleuve). */
   edgeAt(x, z) { return this._gridSample(this.E, x, z); }
   regionAt(x, z) {
@@ -531,7 +576,7 @@ export class LyonMap {
     const j = clamp(Math.round((z - WORLD.minZ) / T_STEP), 0, this.nz - 1);
     return this.R[j * this.nx + i];
   }
-  isWater(x, z) { return this.getGroundHeight(x, z) < WATER_LEVEL - 0.2; }
+  isWater(x, z) { return !this.interior && this._gridSample(this.H, x, z) < WATER_LEVEL - 0.2; }
 
   // ───────────── Rues ─────────────
   _clip(pts, allow) {
@@ -721,30 +766,9 @@ export class LyonMap {
    * pos : Vector3 (pieds), radius, height. Retourne true s'il y a eu contact.
    */
   resolveCircle(pos, radius, height = 1.8) {
+    if (this.interior) return this.interior.resolveCircle(pos, radius, height);
     const near = this._solidsNear(pos.x, pos.z, radius + 1, this._tmpNear || (this._tmpNear = []));
-    let hit = false;
-    for (let pass = 0; pass < 2; pass++) {
-      for (const s of near) {
-        if (pos.y >= s.maxY - STEP_UP || pos.y + height <= s.minY) continue;
-        const dx = pos.x - s.cx, dz = pos.z - s.cz;
-        let lx = s.c * dx - s.s * dz, lz = s.s * dx + s.c * dz;
-        const qx = clamp(lx, -s.hx, s.hx), qz = clamp(lz, -s.hz, s.hz);
-        const ddx = lx - qx, ddz = lz - qz;
-        const d2 = ddx * ddx + ddz * ddz;
-        if (d2 > radius * radius) continue;
-        hit = true;
-        if (d2 > 1e-8) {
-          const d = Math.sqrt(d2), push = (radius - d) / d;
-          lx += ddx * push; lz += ddz * push;
-        } else {
-          const px = s.hx - Math.abs(lx), pz = s.hz - Math.abs(lz);
-          if (px < pz) lx = (lx >= 0 ? 1 : -1) * (s.hx + radius);
-          else lz = (lz >= 0 ? 1 : -1) * (s.hz + radius);
-        }
-        pos.x = s.cx + s.c * lx + s.s * lz;
-        pos.z = s.cz - s.s * lx + s.c * lz;
-      }
-    }
+    const hit = resolveSolids(near, pos, radius, height);
     // limites de la carte
     pos.x = clamp(pos.x, WORLD.minX + 4, WORLD.maxX - 4);
     pos.z = clamp(pos.z, WORLD.minZ + 4, WORLD.maxZ - 4);
@@ -753,7 +777,8 @@ export class LyonMap {
 
   /** Hauteur de la surface marchable sous (x, z) pour un objet dont les pieds sont à feetY. */
   getSurfaceHeight(x, z, feetY = 1e9) {
-    let h = this.getGroundHeight(x, z);
+    if (this.interior) return this.interior.getSurfaceHeight(x, z, feetY);
+    let h = this._gridSample(this.H, x, z);
     for (const b of this.bridges) {
       if (x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1 && feetY > b.top - 2.2) h = Math.max(h, b.top);
     }
@@ -776,7 +801,8 @@ export class LyonMap {
   }
 
   _pointBlocked(x, y, z, pad) {
-    if (y < this.getGroundHeight(x, z) + 0.2) return true;
+    if (this.interior) return this.interior.pointBlocked(x, y, z, pad);
+    if (y < this._gridSample(this.H, x, z) + 0.2) return true;
     for (const b of this.bridges) {
       if (x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1 && y > b.top - 0.9 && y < b.top + 0.15) return true;
     }
@@ -786,13 +812,16 @@ export class LyonMap {
       if (Math.abs(lx) < r.hw + pad && Math.abs(lz) < r.hl + pad && y < r.y + ((lz + r.hl) / (2 * r.hl)) * r.h + pad) return true;
     }
     const near = this._solidsNear(x, z, pad, this._tmpNear3 || (this._tmpNear3 = []));
-    for (const s of near) {
-      if (y < s.minY - pad || y > s.maxY + pad) continue;
-      const dx = x - s.cx, dz = z - s.cz;
-      const lx = s.c * dx - s.s * dz, lz = s.s * dx + s.c * dz;
-      if (Math.abs(lx) < s.hx + pad && Math.abs(lz) < s.hz + pad) return true;
+    return pointInSolids(near, x, y, z, pad);
+  }
+  /** Distance libre le long d'un rayon (tirs). dir doit être normalisé. */
+  raycastDist(from, dir, maxDist, step = 0.45) {
+    const n = Math.ceil(maxDist / step);
+    for (let k = 1; k <= n; k++) {
+      const d = Math.min(maxDist, k * step);
+      if (this._pointBlocked(from.x + dir.x * d, from.y + dir.y * d, from.z + dir.z * d, 0)) return Math.max(0, d - step * 0.5);
     }
-    return false;
+    return maxDist;
   }
   /** Lancer de rayon simple (caméra). Retourne la fraction [0..1] du trajet libre. */
   raycast(from, to, pad = 0.2) {
@@ -1051,44 +1080,44 @@ export class LyonMap {
     const mall = this.addBuilding({ x0: 611, z0: -88, x1: 770, z1: 28, h: 24, facade: 'plain', color: '#d8cfc0', bay: 8, floor: 6, roof: 'flat' });
     this._addSign('CENTRE COMMERCIAL PART-DIEU', 610.8, mall.base + 18, -30, 60, 7, -Math.PI / 2, { bg: '#0d2a52', fg: '#ffffff' });
     this.plainB.obox(609.5, -30, 1.5, 9, mall.base, mall.base + 7, 0, new THREE.Color('#2b3c4a'), {}, {});
-    this._addLocation({ id: 'centre-commercial', name: 'Centre Commercial Part-Dieu', x: 606.5, z: -30, icon: 'shop', marker: true, markerColor: '#4fc3f7', interior: 'mall' });
+    this._addLocation({ id: 'centre-commercial', name: 'Centre Commercial Part-Dieu', x: 606.5, z: -30, icon: 'shop', marker: true, markerColor: '#4fc3f7', interior: 'mall', face: -Math.PI / 2 });
     this.plazas.push({ x0: 606, z0: -94, x1: 611, z1: 34, color: '#b9b2a5' });
 
     // Gare Part-Dieu + voies
     const gare = this.addBuilding({ x0: 790, z0: -280, x1: 834, z1: 180, h: 14, facade: 'modern', color: '#e6ecef', bay: 3, floor: 4.5, roof: 'flat' });
     this._addSign('GARE LYON PART-DIEU', 789.8, gare.base + 11, -50, 46, 5, -Math.PI / 2, { bg: '#ffffff', fg: '#b3122a' });
-    this._addLocation({ id: 'gare-part-dieu', name: 'Gare Part-Dieu', x: 787.5, z: -50, icon: 'train', marker: true, markerColor: '#ffd23f', interior: 'station' });
+    this._addLocation({ id: 'gare-part-dieu', name: 'Gare Part-Dieu', x: 787.5, z: -50, icon: 'train', marker: true, markerColor: '#ffd23f', interior: 'gare-part-dieu', face: -Math.PI / 2 });
     this._buildRailways();
     this.labels.push({ text: 'Gare Part-Dieu', x: 812, z: -300, size: 10 });
 
     // Gare de Perrache
     const per = this.addBuilding({ x0: -130, z0: 598, x1: 100, z1: 686, h: 20, facade: 'plain', color: '#bdbab3', bay: 6, floor: 5, roof: 'flat' });
     this._addSign('GARE DE PERRACHE', -15, per.base + 15, 597.8, 50, 6, Math.PI, { bg: '#1d1d1d', fg: '#ffd23f' });
-    this._addLocation({ id: 'gare-perrache', name: 'Gare de Perrache', x: -15, z: 594.5, icon: 'train', marker: true, markerColor: '#ffd23f', interior: 'station' });
+    this._addLocation({ id: 'gare-perrache', name: 'Gare de Perrache', x: -15, z: 594.5, icon: 'train', marker: true, markerColor: '#ffd23f', interior: 'gare-perrache', face: Math.PI });
     this.labels.push({ text: 'Gare de Perrache', x: -15, z: 642, size: 10 });
 
     // Hôpital de la Croix-Rousse
     const hop = this.addBuilding({ x0: -10, z0: -975, x1: 70, z1: -881, h: 22, facade: 'plain', color: '#f3f1ec', bay: 3.4, floor: 3.4, roof: 'flat' });
     this._addSign('HÔPITAL DE LA CROIX-ROUSSE', 30, hop.base + 17, -880.8, 54, 5, 0, { bg: '#ffffff', fg: '#c62828' });
     this._buildRedCross(30, hop.base + 10, -880.7);
-    this._addLocation({ id: 'hopital', name: 'Hôpital de la Croix-Rousse', x: 30, z: -878, icon: 'hospital', marker: true, markerColor: '#ff5252', interior: 'hospital', spawn: { x: 30, z: -873, yaw: 0 } });
+    this._addLocation({ id: 'hopital', name: 'Hôpital de la Croix-Rousse', x: 30, z: -878, icon: 'hospital', marker: true, markerColor: '#ff5252', interior: 'hospital', face: 0, spawn: { x: 30, z: -873, yaw: 0 } });
 
     // Planque du joueur + garage (Guillotière)
     const house = this.addBuilding({ x0: 428, z0: 378, x1: 452, z1: 401, h: 8, facade: 'plain', color: '#e7c9a0', roof: 'tile', bay: 3, floor: 3.2 });
     this.addBuilding({ x0: 456, z0: 386, x1: 472, z1: 401, h: 4.5, facade: 'plain', color: '#9ea3a8', roof: 'flat', bay: 4, floor: 4.5 });
     this._buildGarageDoor(464, house.base, 401.05);
-    this._addLocation({ id: 'planque', name: 'Planque', x: 440, z: 403.5, icon: 'house', marker: true, markerColor: '#66ff88', interior: 'house' });
-    this._addLocation({ id: 'garage', name: 'Garage', x: 464, z: 404.5, icon: 'garage', marker: true, markerColor: '#4fc3f7', interior: 'garage' });
+    this._addLocation({ id: 'planque', name: 'Planque', x: 440, z: 403.5, icon: 'house', marker: true, markerColor: '#66ff88', interior: 'house', face: 0 });
+    this._addLocation({ id: 'garage', name: 'Garage', x: 464, z: 404.5, icon: 'garage', marker: true, markerColor: '#4fc3f7', garage: true, face: 0 });
 
     // Armurerie
     const arm = this.addBuilding({ x0: 538, z0: 688, x1: 562, z1: 710, h: 9, facade: 'plain', color: '#7d7468', roof: 'flat', bay: 4, floor: 4.5 });
     this._addSign('ARMURERIE', 550, arm.base + 6.5, 710.1, 16, 2.6, 0, { bg: '#111', fg: '#ff3b30', border: '#ff3b30' });
-    this._addLocation({ id: 'armurerie', name: 'Armurerie', x: 550, z: 712.5, icon: 'gun', marker: true, markerColor: '#ff9f43', interior: 'gunshop' });
+    this._addLocation({ id: 'armurerie', name: 'Armurerie', x: 550, z: 712.5, icon: 'gun', marker: true, markerColor: '#ff9f43', interior: 'gunshop', face: 0 });
 
     // Commissariat
     const pol = this.addBuilding({ x0: 410, z0: -70, x1: 460, z1: -20, h: 14, facade: 'plain', color: '#e9e9ef', roof: 'flat', bay: 3, floor: 3.5 });
     this._addSign('POLICE NATIONALE', 409.8, pol.base + 11, -45, 22, 3, -Math.PI / 2, { bg: '#0b3d91', fg: '#ffffff' });
-    this._addLocation({ id: 'police', name: 'Commissariat', x: 404, z: -45, icon: 'police', marker: false });
+    this._addLocation({ id: 'police', name: 'Commissariat', x: 404, z: -45, icon: 'police', marker: false, face: -Math.PI / 2, spawn: { x: 402, z: -45, yaw: -Math.PI / 2 } });
 
     // Fourvière : basilique + tour métallique
     this._buildBasilica(-600, -40);
@@ -1107,11 +1136,12 @@ export class LyonMap {
       this.trees.push([x, z, 0.9 + this.rng() * 0.6]);
     }
     // Tremplins pour les cascades
-    this._addRamp(-37.5, -712, 0, 2.2, 8, 1.5);   // haut de la Grande-Côte
-    this._addRamp(-217.5, -712, 0, 2.2, 8, 1.5);
-    this._addRamp(112.5, -712, 0, 2.2, 8, 1.5);
-    this._addRamp(-65, 290, Math.PI, 2.5, 8, 1.3);   // Bellecour
-    this._addRamp(602.5, 470, 0, 2.2, 8, 1.6);       // Guillotière
+    this._addRamp(-37.5, -706, 0, 2.4, 6, 2.2);   // haut de la Grande-Côte
+    this._addRamp(-217.5, -706, 0, 2.4, 6, 2.2);
+    this._addRamp(112.5, -706, 0, 2.4, 6, 2.2);
+    this._addRamp(-65, 290, Math.PI, 2.5, 6, 1.8);   // Bellecour
+    this._addRamp(602.5, 470, 0, 2.4, 6, 2.4);       // Guillotière
+    this._addRamp(386, -300, Math.PI / 2, 2.4, 6, 2.2); // quai du Rhône (Brotteaux)
 
     // Étiquettes des quartiers (grande carte)
     this.labels.push(
@@ -1155,7 +1185,7 @@ export class LyonMap {
     this.group.add(m);
     this.ramps.push({ x, z, y, c: Math.cos(a), s: Math.sin(a), hw, hl, h });
     // face arrière verticale : solide (on ne traverse pas le tremplin par derrière)
-    this.addSolid(x + Math.sin(a) * (hl - 0.3), z + Math.cos(a) * (hl - 0.3), hw, 0.3, y - 0.5, y + h, a, 'ramp');
+    this.addSolid(x + Math.sin(a) * (hl + 0.3), z + Math.cos(a) * (hl + 0.3), hw, 0.3, y - 0.5, y + h, a, 'ramp');
   }
 
   _buildStatue(cx, cz) {
@@ -1603,7 +1633,7 @@ export class LyonMap {
         this.lamps.push({ x: lx + 11, z: z + W / 2 - 0.6, y: TOP, a: Math.PI });
       }
       this.bridges.push({ x0: xl, x1: xr, z0: z - W / 2, z1: z + W / 2, top: TOP, name: def.name, river: def.river, z });
-      this.roads.push({ pts: [[xl, z], [xr, z]], w: ROAD_W, kind: 'bridge', name: def.name });
+      this.roads.push({ pts: [[r.bankX(z, -1, QUAI_OFFSET), z], [r.bankX(z, 1, QUAI_OFFSET), z]], w: ROAD_W, kind: 'bridge', name: def.name });
       this.labels.push({ text: def.name, x: cx, z: z - 14, size: 7, bridge: true });
     }
     // parapets des quais (avec ouvertures régulières pour descendre sur les berges)
@@ -1826,6 +1856,7 @@ export class LyonMap {
 
   // ───────────── Infos ─────────────
   getDistrictName(x, z) {
+    if (this.interior) return this.interior.name;
     if (this.edgeAt(x, z) < -1) {
       if (z > CONFLUENCE_Z - 20) return 'Le Rhône';
       return this.saone.sample(x, z).d - this.saone.hwAt(z) < 0 ? 'La Saône' : 'Le Rhône';
